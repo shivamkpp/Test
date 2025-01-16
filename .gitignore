@@ -1,0 +1,8 @@
+# IDE and build files
+.vscode/
+build/
+*.o
+*.out
+
+# Credentials
+config.json 
