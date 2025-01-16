@@ -2,6 +2,7 @@
 #include <string>
 #include <curl/curl.h>
 #include <json/json.h>
+#include <cmath>
 
 // Deribit API base URL
 const std::string BASE_URL = "https://test.deribit.com";
@@ -227,6 +228,104 @@ void showOrders(const std::string& instrument_name, const std::string& access_to
     }
 }
 
+void modifyOrder(const std::string& order_id, double amount, double price, const std::string& access_token) {
+    std::string url = BASE_URL + "/api/v2/private/edit";
+
+    // For BTC-PERPETUAL, amount needs to be in USD and must be a multiple of 10
+    double usd_amount = amount * price;
+    // Round to nearest multiple of 10 using floor instead of round
+    usd_amount = std::floor(usd_amount / 10.0) * 10.0;
+
+    Json::Value payload;
+    payload["order_id"] = order_id;
+    payload["amount"] = usd_amount;  // Send amount in USD
+    payload["price"] = price;
+    payload["instrument_name"] = "BTC-PERPETUAL";
+    payload["post_only"] = false;
+    payload["reduce_only"] = false;
+
+    // Print the request for verification
+    std::cout << "\nSending modification request:" << std::endl;
+    std::cout << "Order ID: " << order_id << std::endl;
+    std::cout << "Amount in USD: $" << usd_amount << std::endl;
+    std::cout << "Price: $" << price << std::endl;
+
+    std::string response = sendPostRequest(url, payload, access_token);
+
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("error")) {
+            std::cerr << "Error modifying order: " << jsonResponse["error"]["message"].asString() << std::endl;
+            std::cerr << "Full response: " << response << std::endl;  // Print full response for debugging
+        } else if (jsonResponse.isMember("result")) {
+            std::cout << "\nOrder modified successfully!" << std::endl;
+            std::cout << "New order details:" << std::endl;
+            std::cout << "Order ID: " << jsonResponse["result"]["order_id"].asString() << std::endl;
+            std::cout << "Price: $" << jsonResponse["result"]["price"].asString() << std::endl;
+            std::cout << "Amount: " << jsonResponse["result"]["amount"].asString() << " BTC" << std::endl;
+        }
+    } else {
+        std::cerr << "Error parsing response: " << errs << std::endl;
+    }
+}
+
+void getOrderbook(const std::string& instrument_name, const std::string& access_token) {
+    std::string url = BASE_URL + "/api/v2/public/get_order_book";
+
+    Json::Value payload;
+    payload["instrument_name"] = instrument_name;
+    payload["depth"] = 5;  // Limit to top 5 orders for readability
+
+    // For orderbook, we can use a simpler request as it's a public endpoint
+    CURL* curl;
+    CURLcode res;
+    std::string readBuffer;
+
+    std::string query_url = url + "?instrument_name=" + instrument_name + "&depth=5";
+
+    curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, query_url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            throw std::runtime_error("CURL error: " + std::string(curl_easy_strerror(res)));
+        }
+    }
+
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(readBuffer);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("error")) {
+            std::cerr << "Error getting orderbook: " << jsonResponse["error"]["message"].asString() << std::endl;
+        } else if (jsonResponse.isMember("result")) {
+            std::cout << "\nOrderbook for " << instrument_name << ":" << std::endl;
+            std::cout << "\nBids (Buy Orders):" << std::endl;
+            for (const auto& bid : jsonResponse["result"]["bids"]) {
+                std::cout << "Price: " << bid[0].asString() 
+                         << " | Amount: " << bid[1].asString() << std::endl;
+            }
+            
+            std::cout << "\nAsks (Sell Orders):" << std::endl;
+            for (const auto& ask : jsonResponse["result"]["asks"]) {
+                std::cout << "Price: " << ask[0].asString() 
+                         << " | Amount: " << ask[1].asString() << std::endl;
+            }
+        }
+    } else {
+        std::cerr << "Error parsing response: " << errs << std::endl;
+    }
+}
+
 // Update main function to include user interaction
 int main() {
     try {
@@ -239,8 +338,10 @@ int main() {
             std::cout << "1. Place BTC Order" << std::endl;
             std::cout << "2. Show Open Orders" << std::endl;
             std::cout << "3. Cancel Order" << std::endl;
-            std::cout << "4. Exit" << std::endl;
-            std::cout << "Enter your choice (1-4): ";
+            std::cout << "4. Modify Order" << std::endl;
+            std::cout << "5. View Orderbook" << std::endl;
+            std::cout << "6. Exit" << std::endl;
+            std::cout << "Enter your choice (1-6): ";
 
             int choice;
             std::cin >> choice;
@@ -262,6 +363,53 @@ int main() {
                     break;
                 }
                 case 4: {
+                    // First show current orders
+                    std::cout << "\nFetching your current orders first..." << std::endl;
+                    showOrders("BTC-PERPETUAL", token);
+                    
+                    std::string order_id;
+                    double amount, price;
+                    
+                    std::cout << "\nModify Order Menu" << std::endl;
+                    std::cout << "==================" << std::endl;
+                    std::cout << "Valid amount examples (in USD):" << std::endl;
+                    std::cout << "- 100 USD (minimum trade size)" << std::endl;
+                    std::cout << "- 500 USD" << std::endl;
+                    std::cout << "- 1000 USD" << std::endl;
+                    std::cout << "Note: Amount must be a multiple of 10 USD" << std::endl;
+                    
+                    // Get current orderbook to see market price
+                    std::cout << "\nCurrent market prices:" << std::endl;
+                    getOrderbook("BTC-PERPETUAL", token);
+                    
+                    std::cout << "\nEnter order ID to modify (from your open orders above): ";
+                    std::cin >> order_id;
+                    
+                    std::cout << "Enter new amount in USD (min 100, must be multiple of 10): ";
+                    std::cin >> amount;
+                    
+                    std::cout << "Enter new price in USD (e.g., 35000 for $35,000): ";
+                    std::cin >> price;
+                    
+                    // Validate inputs
+                    if (amount < 100 || std::fmod(amount, 10.0) != 0) {
+                        std::cout << "Error: Amount must be at least 100 USD and a multiple of 10" << std::endl;
+                        break;
+                    }
+                    
+                    if (price <= 0) {
+                        std::cout << "Error: Price must be greater than 0" << std::endl;
+                        break;
+                    }
+                    
+                    modifyOrder(order_id, amount, price, token);
+                    break;
+                }
+                case 5: {
+                    getOrderbook("BTC-PERPETUAL", token);
+                    break;
+                }
+                case 6: {
                     std::cout << "Exiting program..." << std::endl;
                     return 0;
                 }
