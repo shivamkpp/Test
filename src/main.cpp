@@ -26,8 +26,9 @@ int main() {
             std::cout << "3. Cancel Order" << std::endl;
             std::cout << "4. Modify Order" << std::endl;
             std::cout << "5. View Orderbook" << std::endl;
-            std::cout << "6. Exit" << std::endl;
-            std::cout << "Enter your choice (1-6): ";
+            std::cout << "6. View Current Positions" << std::endl;
+            std::cout << "7. Exit" << std::endl;
+            std::cout << "Enter your choice (1-7): ";
 
             int choice;
             std::cin >> choice;
@@ -63,7 +64,12 @@ int main() {
                     api.getOrderbook(instrument);
                     break;
                 }
-                case 6:
+                case 6: {
+                    std::string currency = "BTC";  // Default to BTC
+                    api.viewCurrentPositions(currency);
+                    break;
+                }
+                case 7:
                     return 0;
                 default:
                     std::cout << "Invalid choice" << std::endl;

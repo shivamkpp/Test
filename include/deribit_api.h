@@ -24,6 +24,7 @@ public:
     void cancelOrder(const std::string& order_id);
     void modifyOrder(const std::string& order_id, double amount, double price);
     void getOrderbook(const std::string& instrument_name);
+    void viewCurrentPositions(const std::string& currency);
 };
 
 #endif // DERIBIT_API_H 

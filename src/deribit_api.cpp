@@ -300,4 +300,82 @@ void DeribitAPI::getOrderbook(const std::string& instrument_name) {
     }
 }
 
+void DeribitAPI::viewCurrentPositions(const std::string& currency) {
+    std::string url = BASE_URL + "/api/v2/private/get_positions";
+
+    Json::Value payload;
+    payload["currency"] = currency;
+    payload["kind"] = "future";
+
+    std::string response = sendPostRequest(url, payload, access_token);
+
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("result")) {
+            const Json::Value& positions = jsonResponse["result"];
+            
+            if (positions.size() == 0) {
+                std::cout << "\n📊 No Open Positions for " << currency << std::endl;
+                return;
+            }
+
+            std::cout << "\n📊 Current Positions for " << currency << std::endl;
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+
+            for (const auto& position : positions) {
+                std::cout << "🔹 Position Details:" << std::endl;
+                
+                // Instrument
+                if (position.isMember("instrument_name"))
+                    std::cout << "Instrument: " << position["instrument_name"].asString() << std::endl;
+                
+                // Direction and Size
+                if (position.isMember("direction") && position.isMember("size")) {
+                    std::string direction = position["direction"].asString();
+                    double size = position["size"].asDouble();
+                    std::cout << "Direction: " << (direction == "buy" ? "🟢 Long" : "🔴 Short") << std::endl;
+                    std::cout << "Size: " << std::fixed << std::setprecision(8) << std::abs(size) << " " << currency << std::endl;
+                }
+                
+                // Entry Price
+                if (position.isMember("average_price"))
+                    std::cout << "Entry Price: $" << std::fixed << std::setprecision(2) 
+                             << position["average_price"].asDouble() << std::endl;
+                
+                // Current Price
+                if (position.isMember("mark_price"))
+                    std::cout << "Mark Price: $" << std::fixed << std::setprecision(2) 
+                             << position["mark_price"].asDouble() << std::endl;
+                
+                // PnL
+                if (position.isMember("total_profit_loss")) {
+                    double pnl = position["total_profit_loss"].asDouble();
+                    std::string pnlColor = pnl >= 0 ? "🟢" : "🔴";
+                    std::cout << "PnL: " << pnlColor << " " << std::fixed << std::setprecision(8) 
+                             << pnl << " " << currency << std::endl;
+                }
+                
+                // Liquidation Price
+                if (position.isMember("estimated_liquidation_price")) {
+                    double liq_price = position["estimated_liquidation_price"].asDouble();
+                    if (liq_price > 0) {
+                        std::cout << "Liquidation Price: $" << std::fixed << std::setprecision(2) 
+                                 << liq_price << std::endl;
+                    }
+                }
+
+                std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            }
+        } else if (jsonResponse.isMember("error")) {
+            std::cout << "\n❌ Error fetching positions" << std::endl;
+            std::cout << "Error: " << jsonResponse["error"]["message"].asString() << std::endl;
+        }
+    } else {
+        std::cerr << "Error parsing response: " << errs << std::endl;
+    }
+}
+
 // ... [Previous authentication and other methods remain the same, just move them into class methods] 
