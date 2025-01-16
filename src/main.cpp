@@ -58,9 +58,11 @@ int main() {
                     api.modifyOrder(order_id, amount, price);
                     break;
                 }
-                case 5:
-                    api.getOrderbook("BTC-PERPETUAL");
+                case 5: {
+                    std::string instrument = "BTC-PERPETUAL";  // Default instrument
+                    api.getOrderbook(instrument);
                     break;
+                }
                 case 6:
                     return 0;
                 default:

@@ -1,8 +1,11 @@
 #include "deribit_api.h"
 #include <iostream>
+#include <iomanip>
 #include <curl/curl.h>
 #include <sstream>
 #include <cmath>
+#include <ctime>
+#include <algorithm>
 
 DeribitAPI::DeribitAPI(const std::string& client_id, const std::string& client_secret, const std::string& base_url)
     : BASE_URL(base_url), CLIENT_ID(client_id), CLIENT_SECRET(client_secret) {}
@@ -18,7 +21,7 @@ std::string DeribitAPI::sendPostRequest(const std::string& url, const Json::Valu
     std::string readBuffer;
 
     Json::Value jsonPayload;
-    if (url.find("/auth") != std::string::npos) {
+    if (url.find("/public/") != std::string::npos) {
         jsonPayload = payload;
     } else {
         jsonPayload["jsonrpc"] = "2.0";
@@ -34,7 +37,6 @@ std::string DeribitAPI::sendPostRequest(const std::string& url, const Json::Valu
 
     Json::StreamWriterBuilder writer;
     std::string payloadStr = Json::writeString(writer, jsonPayload);
-    std::cout << "Request payload: " << payloadStr << std::endl;
 
     curl = curl_easy_init();
     if (curl) {
@@ -106,14 +108,39 @@ void DeribitAPI::place_btc_order() {
 
     Json::Value payload;
     payload["instrument_name"] = "BTC-PERPETUAL";
-    payload["amount"] = 100;  // Minimum amount in USD
+    payload["amount"] = 100;
     payload["type"] = "limit";
     payload["price"] = 35000;
     payload["post_only"] = false;
     payload["reduce_only"] = false;
 
     std::string response = sendPostRequest(url, payload, access_token);
-    std::cout << "Order response: " << response << std::endl;
+    
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("error")) {
+            std::cout << "\n❌ Order Placement Failed" << std::endl;
+            std::cout << "Error: " << jsonResponse["error"]["message"].asString() << std::endl;
+        } else if (jsonResponse.isMember("result")) {
+            const Json::Value& order = jsonResponse["result"]["order"];
+            if (order.isObject()) {
+                std::cout << "\n✅ Order Placed Successfully" << std::endl;
+                std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+                std::cout << "Order ID: " << order["order_id"].asString() << std::endl;
+                std::cout << "Instrument: " << order["instrument_name"].asString() << std::endl;
+                std::cout << "Direction: " << order["direction"].asString() << std::endl;
+                std::cout << "Price: $" << std::fixed << std::setprecision(2) << order["price"].asDouble() << std::endl;
+                std::cout << "Amount: $" << order["amount"].asDouble() << std::endl;
+                std::cout << "Type: " << order["order_type"].asString() << std::endl;
+                std::cout << "Status: " << order["order_state"].asString() << std::endl;
+                std::cout << "Time in Force: " << order["time_in_force"].asString() << std::endl;
+                std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            }
+        }
+    }
 }
 
 void DeribitAPI::showOrders(const std::string& instrument_name) {
@@ -124,7 +151,31 @@ void DeribitAPI::showOrders(const std::string& instrument_name) {
     payload["type"] = "all";
 
     std::string response = sendPostRequest(url, payload, access_token);
-    std::cout << "Open orders: " << response << std::endl;
+    
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("result")) {
+            const Json::Value& orders = jsonResponse["result"];
+            if (orders.size() == 0) {
+                std::cout << "\n📝 No Open Orders" << std::endl;
+                return;
+            }
+
+            std::cout << "\n📝 Open Orders" << std::endl;
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            for (const auto& order : orders) {
+                std::cout << "Order ID: " << order["order_id"].asString() << std::endl;
+                std::cout << "Price: $" << order["price"].asString() << std::endl;
+                std::cout << "Amount: " << order["amount"].asString() << " USD" << std::endl;
+                std::cout << "Direction: " << order["direction"].asString() << std::endl;
+                std::cout << "Type: " << order["order_type"].asString() << std::endl;
+                std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            }
+        }
+    }
 }
 
 void DeribitAPI::cancelOrder(const std::string& order_id) {
@@ -134,7 +185,22 @@ void DeribitAPI::cancelOrder(const std::string& order_id) {
     payload["order_id"] = order_id;
 
     std::string response = sendPostRequest(url, payload, access_token);
-    std::cout << "Cancel response: " << response << std::endl;
+    
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("error")) {
+            std::cout << "\n❌ Cancel Order Failed" << std::endl;
+            std::cout << "Error: " << jsonResponse["error"]["message"].asString() << std::endl;
+        } else if (jsonResponse.isMember("result")) {
+            std::cout << "\n✅ Order Cancelled Successfully" << std::endl;
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            std::cout << "Order ID: " << jsonResponse["result"]["order_id"].asString() << std::endl;
+            std::cout << "State: " << jsonResponse["result"]["state"].asString() << std::endl;
+        }
+    }
 }
 
 void DeribitAPI::modifyOrder(const std::string& order_id, double amount, double price) {
@@ -151,18 +217,87 @@ void DeribitAPI::modifyOrder(const std::string& order_id, double amount, double 
     payload["reduce_only"] = false;
 
     std::string response = sendPostRequest(url, payload, access_token);
-    std::cout << "Modify response: " << response << std::endl;
+    
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("error")) {
+            std::cout << "\n❌ Modify Order Failed" << std::endl;
+            std::cout << "Error: " << jsonResponse["error"]["message"].asString() << std::endl;
+        } else if (jsonResponse.isMember("result")) {
+            std::cout << "\n✅ Order Modified Successfully" << std::endl;
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            std::cout << "Order ID: " << jsonResponse["result"]["order_id"].asString() << std::endl;
+            std::cout << "New Price: $" << jsonResponse["result"]["price"].asString() << std::endl;
+            std::cout << "New Amount: " << jsonResponse["result"]["amount"].asString() << " USD" << std::endl;
+        }
+    }
 }
 
 void DeribitAPI::getOrderbook(const std::string& instrument_name) {
     std::string url = BASE_URL + "/api/v2/public/get_order_book";
 
     Json::Value payload;
-    payload["instrument_name"] = instrument_name;
-    payload["depth"] = 5;
+    payload["jsonrpc"] = "2.0";
+    payload["method"] = "public/get_order_book";
+    payload["id"] = 8066;
+    
+    Json::Value params;
+    params["instrument_name"] = instrument_name;
+    params["depth"] = 5;
+    payload["params"] = params;
 
     std::string response = sendPostRequest(url, payload, "");
-    std::cout << "Orderbook: " << response << std::endl;
+
+    Json::CharReaderBuilder reader;
+    Json::Value jsonResponse;
+    std::istringstream s(response);
+    std::string errs;
+    if (Json::parseFromStream(reader, s, &jsonResponse, &errs)) {
+        if (jsonResponse.isMember("result")) {
+            const Json::Value& result = jsonResponse["result"];
+            
+            std::cout << "\n📊 Orderbook for " << instrument_name << std::endl;
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+            
+            // Display Asks (Sell Orders)
+            std::cout << "🔴 SELLS (Asks):" << std::endl;
+            const Json::Value& asks = result["asks"];
+            for (int i = 0; i < std::min(5, (int)asks.size()); i++) {
+                double price = asks[i][0].asDouble();
+                double amount = asks[i][1].asDouble();
+                std::cout << std::fixed << std::setprecision(2)
+                         << "  $" << std::setw(10) << price 
+                         << " | Amount: " << std::setw(10) << amount << " USD" << std::endl;
+            }
+            
+            std::cout << "\n🟢 BUYS (Bids):" << std::endl;
+            const Json::Value& bids = result["bids"];
+            for (int i = 0; i < std::min(5, (int)bids.size()); i++) {
+                double price = bids[i][0].asDouble();
+                double amount = bids[i][1].asDouble();
+                std::cout << std::fixed << std::setprecision(2)
+                         << "  $" << std::setw(10) << price 
+                         << " | Amount: " << std::setw(10) << amount << " USD" << std::endl;
+            }
+            
+            // Show spread
+            if (!asks.empty() && !bids.empty()) {
+                double bestAsk = asks[0][0].asDouble();
+                double bestBid = bids[0][0].asDouble();
+                double spread = bestAsk - bestBid;
+                std::cout << "\n📈 Spread: $" << std::fixed << std::setprecision(2) << spread << std::endl;
+            }
+            
+            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" << std::endl;
+        } else if (jsonResponse.isMember("error")) {
+            std::cout << "❌ Error: " << jsonResponse["error"]["message"].asString() << std::endl;
+        }
+    } else {
+        std::cerr << "Error parsing response: " << errs << std::endl;
+    }
 }
 
 // ... [Previous authentication and other methods remain the same, just move them into class methods] 
