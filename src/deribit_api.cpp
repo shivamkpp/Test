@@ -103,14 +103,14 @@ bool DeribitAPI::authenticate() {
     return false;
 }
 
-void DeribitAPI::place_btc_order() {
+void DeribitAPI::place_btc_order(const std::string& instrument_name, double amount, double price) {
     std::string url = BASE_URL + "/api/v2/private/buy";
 
     Json::Value payload;
-    payload["instrument_name"] = "BTC-PERPETUAL";
-    payload["amount"] = 100;
+    payload["instrument_name"] = instrument_name;
+    payload["amount"] = amount;
     payload["type"] = "limit";
-    payload["price"] = 35000;
+    payload["price"] = price;
     payload["post_only"] = false;
     payload["reduce_only"] = false;
 

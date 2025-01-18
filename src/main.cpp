@@ -205,7 +205,7 @@ int main() {
 
         while (true) {
             std::cout << "\nDeribit Trading Menu:" << std::endl;
-            std::cout << "1. Place BTC Order" << std::endl;
+            std::cout << "1. Place Order" << std::endl;
             std::cout << "2. Show Open Orders" << std::endl;
             std::cout << "3. Cancel Order" << std::endl;
             std::cout << "4. Modify Order" << std::endl;
@@ -219,12 +219,25 @@ int main() {
             std::cin >> choice;
 
             switch (choice) {
-                case 1:
-                    api.place_btc_order();
+                case 1:{
+                    std::string crypto;
+                    std::cout << "Enter the crypto currency: ";
+                    std::cin >> crypto;
+                    double amount, price;
+                    std::cout << "Enter the amount: ";
+                    std::cin >> amount;
+                    std::cout << "Enter the price: ";
+                    std::cin >> price;
+                    api.place_btc_order(crypto, amount, price);
                     break;
-                case 2:
-                    api.showOrders("BTC-PERPETUAL");
+                }
+                case 2:{
+                    std::string crypto;
+                    std::cout << "Enter the crypto currency: ";
+                    std::cin >> crypto;
+                    api.showOrders(crypto);
                     break;
+                }
                 case 3: {
                     std::string order_id;
                     std::cout << "Enter order ID to cancel: ";
@@ -245,13 +258,17 @@ int main() {
                     break;
                 }
                 case 5: {
-                    std::string instrument = "BTC-PERPETUAL";  // Default instrument
-                    api.getOrderbook(instrument);
+                    std::string crypto;
+                    std::cout << "Enter the crypto currency: ";
+                    std::cin >> crypto;
+                    api.getOrderbook(crypto);
                     break;
                 }
                 case 6: {
-                    std::string currency = "BTC";  // Default to BTC
-                    api.viewCurrentPositions(currency);
+                    std::string crypto;
+                    std::cout << "Enter the crypto currency: ";
+                    std::cin >> crypto;
+                    api.viewCurrentPositions(crypto);
                     break;
                 }
                 case 7:{

@@ -19,7 +19,7 @@ public:
                const std::string& base_url = "https://test.deribit.com");
     
     bool authenticate();
-    void place_btc_order();
+    void place_btc_order(const std::string& instrument_name, double amount, double price);
     void showOrders(const std::string& instrument_name);
     void cancelOrder(const std::string& order_id);
     void modifyOrder(const std::string& order_id, double amount, double price);
