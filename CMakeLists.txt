@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(CURL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP jsoncpp)
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # Include directories
 include_directories(
@@ -20,11 +23,18 @@ add_executable(deribit_trading
     src/main.cpp
     src/deribit_api.cpp
     src/config.cpp
+    src/orderbook.cpp
 )
 
 # Link libraries
 target_link_libraries(deribit_trading
-    PRIVATE
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    crypto
+    ssl
+    Threads::Threads
+    CURL::libcurl
+    nlohmann_json::nlohmann_json
     CURL::libcurl
     jsoncpp
 )
